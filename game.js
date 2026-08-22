@@ -112,7 +112,7 @@ function dangerRatio()
 
 function gameInit()
 {
-    LJS.setCanvasPixelated(false);
+    //LJS.setCanvasPixelated(true);
     LJS.setCanvasFixedSize(vec2(CANVAS_W, CANVAS_H));
     LJS.setCanvasClearColor(rgb(.08,.08,.14));
     bestScore = +localStorage[BEST_SCORE_KEY] || 0;
@@ -576,21 +576,32 @@ function gameUpdatePost() {}
 function drawCell(cell, center)
 {
     if (!cell) return;
-    if (cell.rainbow)
-    {
+
+    // Rainbow block – still animate, but now as a pixel block
+    if (cell.rainbow) {
         const hue = (LJS.time*.4) % 1;
         LJS.drawRect(center, vec2(.92), hsl(hue,1,.5));
         LJS.drawRegularPoly(center, vec2(.55), 8, hsl((hue+.5)%1,1,.7));
         return;
     }
+
     const color = BLOCK_COLORS[cell.color];
-    LJS.drawRect(center, vec2(.92), cell.cracked ? color.scale(.5,1) : color);
-    LJS.drawRegularPoly(center, vec2(.5), BLOCK_SHAPES[cell.color], color.scale(cell.cracked?.6:.8,1));
-    if (cell.cracked)
-    {
+    const baseColor = cell.cracked ? color.scale(.5,1) : color;
+
+    // 1) Dark drop shadow (bottom-right)
+    LJS.drawRect(center.add(vec2(.06, -.06)), vec2(.94), rgb(0,0,0,.4));
+
+    // 2) Main block
+    LJS.drawRect(center, vec2(.94), baseColor);
+
+    // 3) White highlight (top-left) – creates the NES 3D effect
+    LJS.drawRect(center.add(vec2(-.25, .25)), vec2(.3), rgb(1,1,1,.25));
+
+    // 4) Crack lines (if bombed)
+    if (cell.cracked) {
         const c = rgb(0,0,0,.6);
-        LJS.drawLine(center.add(vec2(-.3,-.3)), center.add(vec2(.35,.25)), .05, c);
-        LJS.drawLine(center.add(vec2(-.1,.35)), center.add(vec2(.2,-.35)), .05, c);
+        LJS.drawLine(center.add(vec2(-.3,-.3)), center.add(vec2(.35,.25)), .06, c);
+        LJS.drawLine(center.add(vec2(-.1,.35)), center.add(vec2(.2,-.35)), .06, c);
     }
 }
 
