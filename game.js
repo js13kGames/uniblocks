@@ -24,16 +24,16 @@ const WORLD_WIDTH = GRID_COLS + PANEL_WIDTH;
 const WORLD_HEIGHT = GRID_ROWS + TOP_MARGIN + BOTTOM_MARGIN;
 const CANVAS_W = 1000, CANVAS_H = 1400;
 
-const TICK_INTERVAL = 1.5;         // seconds per game "tick"
+const TICK_INTERVAL = 2.5;         // seconds per game "tick"
 const SWAP_TIME = .2;              // seconds for a swap animation
 const HOVER_TIME = 1;              // seconds a falling block hovers before dropping
 const HOVER_HEIGHT = .8;           // world units above the grid a block hovers at
-const DROP_SPEED = 10;             // world units/sec while a block is dropping
+const DROP_SPEED = 7;             // world units/sec while a block is dropping
 const MAX_CONCURRENT_FALLING = 2;  // caps the falling-block backlog
 const BOMB_CRACK_COUNT = 3;        // blocks cracked per bomb
-const NO_MOVE_BOMB_TICKS = 5;
-const RAINBOW_TICKS = 20;
-const RAINBOW_TICKS_FAST = 7;
+const NO_MOVE_BOMB_TICKS = 10;
+const RAINBOW_TICKS = 25;
+const RAINBOW_TICKS_FAST = 10;
 const WIN_TICK = 100;
 const BEST_SCORE_KEY = 'unigameBestScore';
 
