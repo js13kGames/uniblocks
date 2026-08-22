@@ -112,7 +112,7 @@ function dangerRatio()
 
 function gameInit()
 {
-    //LJS.setCanvasPixelated(true);
+    LJS.setCanvasPixelated(true);
     LJS.setCanvasFixedSize(vec2(CANVAS_W, CANVAS_H));
     LJS.setCanvasClearColor(rgb(.08,.08,.14));
     bestScore = +localStorage[BEST_SCORE_KEY] || 0;
@@ -121,8 +121,11 @@ function gameInit()
     LJS.setCameraPos(vec2(WORLD_WIDTH/2, worldCenterY));
     LJS.setCameraScale(CANVAS_H/WORLD_HEIGHT);
 
-    unicorn = new Unicorn(vec2(GRID_COLS + PANEL_WIDTH/2, GRID_ROWS/2));
-    gameReset();
+unicorn = new Unicorn(
+    vec2(GRID_COLS + PANEL_WIDTH/2, GRID_ROWS/2),
+    PANEL_WIDTH - .3,
+    { left: GRID_COLS, right: GRID_COLS + PANEL_WIDTH, top: GRID_ROWS, bottom: 0 }
+);    gameReset();
 }
 
 function gameReset()
@@ -142,6 +145,7 @@ function gameReset()
     fastRainbowFlag = false;
     score = 0;
     gameState = 'playing';
+    if (unicorn) unicorn.setWon(false);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -481,6 +485,7 @@ function gameOver(won)
 {
     if (gameState !== 'playing') return;
     gameState = won ? 'won' : 'lost';
+    unicorn.setWon(won);   // <-- add this line
 }
 
 ///////////////////////////////////////////////////////////////////////////////
