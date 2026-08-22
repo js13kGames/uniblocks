@@ -34,7 +34,7 @@ const BOMB_CRACK_COUNT = 3;        // blocks cracked per bomb
 const NO_MOVE_BOMB_TICKS = 10;
 const RAINBOW_TICKS = 25;
 const RAINBOW_TICKS_FAST = 10;
-const WIN_TICK = 100;
+const WIN_TICK = 50;
 const BEST_SCORE_KEY = 'unigameBestScore';
 
 const WHITE = rgb(1,1,1);
