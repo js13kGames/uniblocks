@@ -1,20 +1,7 @@
-/*
-    UniBlocks - js13k entry
-    A Bejeweled/Tetris hybrid: a wall of colored blocks rises from the bottom
-    while single blocks fall from the top. Swap adjacent blocks to make runs
-    of 3+ (bonus for 4+ chains). Stall too long and a bomb cracks some blocks;
-    keep matching and a rainbow block appears to wipe out a whole color.
-    Survive 50 ticks without the stack reaching the top to win.
-*/
 
 import * as LJS from './littlejs.esm.js';
 import { Unicorn } from './unicorn.js';
 const { vec2, rgb, hsl } = LJS;
-
-///////////////////////////////////////////////////////////////////////////////
-// tunables (see plan notes: difficulty ramp / bomb / rainbow thresholds are
-// best-guess defaults meant to be retuned after playtesting)
-
 const GRID_COLS = 6;
 const GRID_ROWS = 12;
 const PANEL_WIDTH = 3.5;
@@ -23,20 +10,18 @@ const BOTTOM_MARGIN = .5;
 const WORLD_WIDTH = GRID_COLS + PANEL_WIDTH;
 const WORLD_HEIGHT = GRID_ROWS + TOP_MARGIN + BOTTOM_MARGIN;
 const CANVAS_W = 1000, CANVAS_H = 1400;
-
-const TICK_INTERVAL = 2.5;         // seconds per game "tick"
-const SWAP_TIME = .2;              // seconds for a swap animation
-const HOVER_TIME = 1;              // seconds a falling block hovers before dropping
-const HOVER_HEIGHT = .8;           // world units above the grid a block hovers at
-const DROP_SPEED = 7;             // world units/sec while a block is dropping
-const MAX_CONCURRENT_FALLING = 2;  // caps the falling-block backlog
-const BOMB_CRACK_COUNT = 3;        // blocks cracked per bomb
+const TICK_INTERVAL = 2.5;         
+const SWAP_TIME = .2;            
+const HOVER_TIME = 1;            
+const HOVER_HEIGHT = .8;        
+const DROP_SPEED = 7;      
+const MAX_CONCURRENT_FALLING = 2;  
+const BOMB_CRACK_COUNT = 3;  
 const NO_MOVE_BOMB_TICKS = 10;
 const RAINBOW_TICKS = 25;
 const RAINBOW_TICKS_FAST = 10;
 const WIN_TICK = 50;
 const BEST_SCORE_KEY = 'unigameBestScore';
-
 const WHITE = rgb(1,1,1);
 const BLOCK_COLORS =
 [
@@ -47,34 +32,23 @@ const BLOCK_COLORS =
     rgb(.2,.55,1),    // blue
     rgb(.65,.3,.9),   // purple
 ];
-const BLOCK_SHAPES = [3,4,5,6,8,10]; // regular-poly sides per color, redundant coding
-
-///////////////////////////////////////////////////////////////////////////////
-// sounds (zzfx arrays - placeholder values, tune later)
-
+const BLOCK_SHAPES = [3,4,5,6,8,10]; 
 const sound_goodMove = new LJS.Sound([.4,.2,250,.04,,.04,,,1,,,,,3]);
 const sound_badMove  = new LJS.Sound([,,700,,,.07,,,,3.7,,,,3,,,.1]);
 const sound_bomb      = new LJS.Sound([1.5,.1,90,.02,.02,.2,4,.3,,,,,.05]);
 const sound_wallRise   = new LJS.Sound([.3,,150,.02,.05,.15,,.2]);
-
-///////////////////////////////////////////////////////////////////////////////
-// game state
-
-let grid;                  // flat array, index = x + y*GRID_COLS, y=0 is bottom
-let fallingBlocks;          // blocks currently hovering/dropping toward the grid
-let swapAnim;                // {posA:{x,y}, posB:{x,y}, t, reverse} or null
-let dragStart;                // {x,y} or null (mouse swap start)
-let cursorPos;                 // {x,y} keyboard cursor
-let selectedPos;                // {x,y} or null keyboard-selected cell
+let grid; 
+let fallingBlocks;   
+let swapAnim;   
+let dragStart;   
+let cursorPos;     
+let selectedPos;   
 let lastSpawnColumn;
 let tickCount, tickTimer, wallInsertCounter, noMoveTicks;
 let rainbowProgress, fastRainbowFlag;
 let score, bestScore;
 let gameState; // 'playing' | 'won' | 'lost'
 let unicorn;
-
-///////////////////////////////////////////////////////////////////////////////
-// grid helpers
 
 function getCell(x,y)
 {
@@ -106,10 +80,6 @@ function dangerRatio()
             if (getCell(x,y)) return (y+1)/GRID_ROWS;
     return 0;
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// setup
-
 function gameInit()
 {
     LJS.setCanvasPixelated(true);
@@ -127,7 +97,6 @@ unicorn = new Unicorn(
     { left: GRID_COLS, right: GRID_COLS + PANEL_WIDTH, top: GRID_ROWS, bottom: 0 }
 );    gameReset();
 }
-
 function gameReset()
 {
     grid = new Array(GRID_COLS*GRID_ROWS).fill(null);
@@ -147,10 +116,6 @@ function gameReset()
     gameState = 'playing';
     if (unicorn) unicorn.setWon(false);
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// tick-driven mechanics: wall rise, falling spawn, bomb timer, win check
-
 function onTick()
 {
     if (gameState !== 'playing') return;
@@ -174,10 +139,8 @@ function onTick()
     if (tickCount >= WIN_TICK)
         gameOver(true);
 }
-
 function insertWallRow()
 {
-    // topped out: no room to push the stack up further
     for (let x=0; x<GRID_COLS; ++x)
         if (getCell(x,GRID_ROWS-1)) { gameOver(false); return; }
 
@@ -188,17 +151,13 @@ function insertWallRow()
     const colorCount = computeColorCount(tickCount);
     for (let x=0; x<GRID_COLS; ++x)
         setCell(x,0, {color:LJS.randInt(colorCount), cracked:false, rainbow:false});
-
-    // keep any airborne blocks visually in sync with the raised stack
     for (const fb of fallingBlocks) fb.pos.y += 1;
 
     sound_wallRise.play();
 }
-
 function trySpawnFallingBlock()
 {
     if (fallingBlocks.length >= MAX_CONCURRENT_FALLING) return;
-
     const candidates = [];
     for (let x=0; x<GRID_COLS; ++x)
         if (!getCell(x,GRID_ROWS-1)) candidates.push(x);
@@ -217,7 +176,6 @@ function trySpawnFallingBlock()
         rainbowProgress = 0;
         fastRainbowFlag = false;
     }
-
     fallingBlocks.push({
         col, pos: vec2(col+.5, GRID_ROWS+HOVER_HEIGHT),
         state: 'hover', hoverTimer: HOVER_TIME,
@@ -225,7 +183,6 @@ function trySpawnFallingBlock()
         rainbow
     });
 }
-
 function triggerBomb()
 {
     const candidates = [];
@@ -247,10 +204,6 @@ function triggerBomb()
     sound_bomb.play();
     unicorn.triggerSad();
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// falling blocks
-
 function updateFallingBlocks(dt)
 {
     for (let i=fallingBlocks.length-1; i>=0; --i)
@@ -281,10 +234,6 @@ function updateFallingBlocks(dt)
         }
     }
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// swapping + match resolution
-
 function attemptSwap(a,b)
 {
     if (swapAnim) return;
@@ -296,7 +245,6 @@ function attemptSwap(a,b)
     setCell(b.x,b.y,cellA);
     swapAnim = {posA:{x:a.x,y:a.y}, posB:{x:b.x,y:b.y}, t:0, reverse:false};
 }
-
 function updateSwapAnim(dt)
 {
     if (!swapAnim) return;
@@ -316,10 +264,8 @@ function updateSwapAnim(dt)
         const {removeSet, maxRun} = findMatches();
         if (removeSet.size) { applyRemoval(removeSet, maxRun); handled = true; }
     }
-
     if (handled) { swapAnim = null; return; }
 
-    // no effect: undo the swap and animate back
     const ca = getCell(posA.x,posA.y), cb = getCell(posB.x,posB.y);
     setCell(posA.x,posA.y,cb);
     setCell(posB.x,posB.y,ca);
@@ -327,7 +273,6 @@ function updateSwapAnim(dt)
     swapAnim.t = 0;
     sound_badMove.play();
 }
-
 function findMatches()
 {
     const removeSet = new Set();
@@ -371,7 +316,6 @@ function findMatches()
     }
     return {removeSet, maxRun};
 }
-
 function applyRemoval(removeSet, maxRun)
 {
     let removed = 0;
@@ -389,12 +333,11 @@ function applyRemoval(removeSet, maxRun)
     score += removed*10 + (maxRun>=4 ? 50 : 0);
     noMoveTicks = 0;
     if (maxRun>=4) fastRainbowFlag = true;
-    ++rainbowProgress; // approximates "ticks with successful moves" per successful swap
+    ++rainbowProgress; 
     sound_goodMove.play();
     unicorn.triggerHappy(maxRun>=4);
     applyGravity();
 }
-
 function resolveRainbow(rainbowPos, otherPos)
 {
     const other = getCell(otherPos.x, otherPos.y);
@@ -414,7 +357,6 @@ function resolveRainbow(rainbowPos, otherPos)
             ++removed;
         }
     }
-
     const neighbors = [[1,0],[-1,0],[0,1],[0,-1]];
     for (const [dx,dy] of neighbors)
     {
@@ -430,7 +372,6 @@ function resolveRainbow(rainbowPos, otherPos)
     unicorn.triggerHappy(true);
     applyGravity();
 }
-
 function applyGravity()
 {
     for (let x=0; x<GRID_COLS; ++x)
@@ -453,7 +394,6 @@ function applyGravity()
         }
     }
 }
-
 function decayFallOffsets()
 {
     for (const c of grid)
@@ -463,7 +403,6 @@ function decayFallOffsets()
         if (Math.abs(c._visualOffsetY) < .02) c._visualOffsetY = 0;
     }
 }
-
 function spawnClearParticles(x,y,colorIndex)
 {
     const pos = vec2(x+.5,y+.5);
@@ -480,16 +419,12 @@ function spawnClearParticles(x,y,colorIndex)
         .5, 0, 1
     );
 }
-
 function gameOver(won)
 {
     if (gameState !== 'playing') return;
     gameState = won ? 'won' : 'lost';
     unicorn.setWon(won);   // <-- add this line
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// input
 
 function worldToGridPos(pos)
 {
@@ -513,7 +448,6 @@ function updateMouseInput()
     }
     else if (!LJS.mouseIsDown(0)) dragStart = null;
 }
-
 function updateKeyboardInput()
 {
     // A/D nudge the oldest hovering falling block sideways before it drops
@@ -540,10 +474,6 @@ function updateKeyboardInput()
         }
     }
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// main loop
-
 function gameUpdate()
 {
     if (LJS.keyWasPressed('KeyR')) gameReset();
@@ -572,12 +502,7 @@ function gameUpdate()
         localStorage[BEST_SCORE_KEY] = bestScore;
     }
 }
-
 function gameUpdatePost() {}
-
-///////////////////////////////////////////////////////////////////////////////
-// rendering
-
 function drawCell(cell, center)
 {
     if (!cell) return;
@@ -589,47 +514,35 @@ function drawCell(cell, center)
         LJS.drawRegularPoly(center, vec2(.55), 8, hsl((hue+.5)%1,1,.7));
         return;
     }
-
     const color = BLOCK_COLORS[cell.color];
     const baseColor = cell.cracked ? color.scale(.5,1) : color;
 
-    // 1) Dark drop shadow (bottom-right)
     LJS.drawRect(center.add(vec2(.06, -.06)), vec2(.94), rgb(0,0,0,.4));
 
-    // 2) Main block
     LJS.drawRect(center, vec2(.94), baseColor);
 
-    // 3) White highlight (top-left) – creates the NES 3D effect
     LJS.drawRect(center.add(vec2(-.25, .25)), vec2(.3), rgb(1,1,1,.25));
 
-    // 4) Crack lines (if bombed)
     if (cell.cracked) {
         const c = rgb(0,0,0,.6);
         LJS.drawLine(center.add(vec2(-.3,-.3)), center.add(vec2(.35,.25)), .06, c);
         LJS.drawLine(center.add(vec2(-.1,.35)), center.add(vec2(.2,-.35)), .06, c);
     }
 }
-
 function drawGridHighlight(pos, color)
 {
     LJS.drawRect(cellCenter(pos), vec2(1.04), color);
 }
-
 function gameRender()
 {
-    // backgrounds
     LJS.drawRect(vec2(GRID_COLS/2, GRID_ROWS/2), vec2(GRID_COLS, GRID_ROWS), rgb(0,0,0,.5));
     LJS.drawRect(vec2(GRID_COLS+PANEL_WIDTH/2, GRID_ROWS/2), vec2(PANEL_WIDTH, GRID_ROWS), rgb(.15,.05,.25,.6));
     LJS.drawRect(vec2(GRID_COLS/2, GRID_ROWS+HOVER_HEIGHT), vec2(GRID_COLS,.9), rgb(1,1,1,.06));
-
-    // keyboard cursor / selection highlights
     if (gameState==='playing')
     {
         drawGridHighlight(cursorPos, rgb(1,1,1,.25));
         if (selectedPos) drawGridHighlight(selectedPos, rgb(1,1,0,.4));
     }
-
-    // settled grid cells (skip the two mid-swap)
     for (let y=0; y<GRID_ROWS; ++y)
     for (let x=0; x<GRID_COLS; ++x)
     {
@@ -640,8 +553,6 @@ function gameRender()
         const center = vec2(x+.5, y+.5 + (cell._visualOffsetY||0));
         drawCell(cell, center);
     }
-
-    // swap animation
     if (swapAnim)
     {
         const p = swapAnim.t;
@@ -649,8 +560,6 @@ function gameRender()
         drawCell(getCell(swapAnim.posA.x,swapAnim.posA.y), lerpVec(centerB,centerA,p));
         drawCell(getCell(swapAnim.posB.x,swapAnim.posB.y), lerpVec(centerA,centerB,p));
     }
-
-    // falling blocks
     for (const fb of fallingBlocks)
         drawCell({color:fb.color, cracked:false, rainbow:fb.rainbow}, fb.pos);
 
@@ -670,6 +579,4 @@ function gameRenderPost()
         LJS.drawTextScreen('Press R to restart', vec2(CANVAS_W/2,CANVAS_H/2+30), 32, WHITE);
     }
 }
-
-///////////////////////////////////////////////////////////////////////////////
 LJS.engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost, []);

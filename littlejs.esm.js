@@ -1,23 +1,5 @@
-/*
-    Mini engine - a tiny drop-in replacement for the subset of the LittleJS
-    API this game uses. Same exported names/signatures as LittleJS so
-    game.js and unicorn.js need no changes beyond what LittleJS itself
-    would require.
-
-    Not a general purpose engine - only implements what this game calls:
-    vec2/rgb/hsl, drawRect/drawLine/drawRegularPoly/drawCircleGradient/
-    drawImage/drawTextScreen, ParticleEmitter, Sound (ZzFX), camera,
-    canvas setup, keyboard/mouse input, engineInit main loop.
-
-    ZzFX synthesis (zzfxG) is Frank Force's ZzFX Micro Zound Zynth,
-    MIT licensed / public domain - https://github.com/KilledByAPixel/ZzFX
-*/
 
 'use strict';
-
-///////////////////////////////////////////////////////////////////////////////
-// math / vector
-
 export function lerp(a, b, p) { return a + (b - a) * p; }
 export function randInt(a, b) { if (b === undefined) { b = a; a = 0; } return (a + Math.random() * (b - a)) | 0; }
 function rand(a = 1, b = 0) { return b + (a - b) * Math.random(); }
@@ -28,9 +10,6 @@ export class Vector2 {
     scale(s) { return new Vector2(this.x * s, this.y * s); }
 }
 export function vec2(x = 0, y = x) { return new Vector2(x, y); }
-
-///////////////////////////////////////////////////////////////////////////////
-// color
 
 export class Color {
     constructor(r = 1, g = 1, b = 1, a = 1) { this.r = r; this.g = g; this.b = b; this.a = a; }
@@ -48,10 +27,6 @@ export function hsl(h = 0, s = 0, l = 1, a = 1) {
     const f = n => l - c * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
     return new Color(f(0), f(8), f(4), a);
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// canvas / camera
-
 let canvas, ctx, cameraPos = vec2(), cameraScale = 32;
 let fixedSize = null, clearColor = new Color(0, 0, 0, 1);
 export let time = 0, timeDelta = 0;
@@ -63,7 +38,6 @@ export function setCanvasClearColor(c) { clearColor = c; }
 export function setCanvasPixelated(b) {
     if (canvas) canvas.style.imageRendering = b ? 'pixelated' : 'auto';
 }
-
 function resizeCanvas() {
     if (!canvas) return;
     if (fixedSize) { canvas.width = fixedSize.x; canvas.height = fixedSize.y; }
@@ -72,7 +46,6 @@ function resizeCanvas() {
     canvas.style.width = canvas.width * s + 'px';
     canvas.style.height = canvas.height * s + 'px';
 }
-
 function worldToScreen(p) {
     return vec2(
         canvas.width / 2 + (p.x - cameraPos.x) * cameraScale,
@@ -85,17 +58,12 @@ function screenToWorld(sx, sy) {
         cameraPos.y - (sy - canvas.height / 2) / cameraScale
     );
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// drawing
-
 export function drawRect(pos, size, color = rgb()) {
     const p = worldToScreen(pos);
     const w = size.x * cameraScale, h = size.y * cameraScale;
     ctx.fillStyle = color.toString();
     ctx.fillRect(p.x - w / 2, p.y - h / 2, w, h);
 }
-
 export function drawLine(a, b, thickness = .1, color = rgb()) {
     const pa = worldToScreen(a), pb = worldToScreen(b);
     ctx.strokeStyle = color.toString();
@@ -106,7 +74,6 @@ export function drawLine(a, b, thickness = .1, color = rgb()) {
     ctx.lineTo(pb.x, pb.y);
     ctx.stroke();
 }
-
 export function drawRegularPoly(pos, size, sides, color = rgb(), lineWidth = 0, lineColor = rgb(0, 0, 0), angle = 0) {
     const p = worldToScreen(pos);
     const rx = size.x * cameraScale, ry = size.y * cameraScale;
@@ -125,7 +92,6 @@ export function drawRegularPoly(pos, size, sides, color = rgb(), lineWidth = 0, 
         ctx.stroke();
     }
 }
-
 export function drawCircleGradient(pos, size = 1, colorInner = rgb(), colorOuter = rgb(1, 1, 1, 0)) {
     const p = worldToScreen(pos);
     const r = Math.max(1, size * cameraScale);
@@ -137,14 +103,12 @@ export function drawCircleGradient(pos, size = 1, colorInner = rgb(), colorOuter
     ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
     ctx.fill();
 }
-
 export function drawImage(image, pos, size) {
     const p = worldToScreen(pos);
     const w = size.x * cameraScale, h = size.y * cameraScale;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(image, p.x - w / 2, p.y - h / 2, w, h);
 }
-
 export function drawTextScreen(text, pos, size = 20, color = rgb(), font = 'sans-serif') {
     ctx.fillStyle = color.toString();
     ctx.font = `bold ${size}px ${font}`;
@@ -152,12 +116,7 @@ export function drawTextScreen(text, pos, size = 20, color = rgb(), font = 'sans
     ctx.textBaseline = 'middle';
     ctx.fillText(text, pos.x, pos.y);
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// particles
-
 let particles = [];
-
 export class ParticleEmitter {
     constructor(pos, angle = 0, emitSize = 0, emitTime = 0, emitRate = 0, emitCone = Math.PI,
         tileInfo, colorStartA = rgb(), colorStartB = rgb(), colorEndA = rgb(1, 1, 1, 0), colorEndB = rgb(1, 1, 1, 0),
@@ -187,7 +146,6 @@ export class ParticleEmitter {
         }
     }
 }
-
 function updateParticles(dt) {
     for (let i = particles.length - 1; i >= 0; --i) {
         const p = particles[i];
@@ -199,7 +157,6 @@ function updateParticles(dt) {
         p.x += p.vx * dt; p.y += p.vy * dt;
     }
 }
-
 function renderParticles() {
     for (const p of particles) {
         const t = p.age / p.life;
@@ -210,19 +167,13 @@ function renderParticles() {
         if (p.additive) ctx.globalCompositeOperation = 'source-over';
     }
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// input
-
 const keysDown = new Set(), keysPressed = new Set();
 const mouseDown = new Set(), mousePressed = new Set();
 export let mousePos = vec2();
-
 export function keyIsDown(code) { return keysDown.has(code); }
 export function keyWasPressed(code) { return keysPressed.has(code); }
 export function mouseIsDown(b = 0) { return mouseDown.has(b); }
 export function mouseWasPressed(b = 0) { return mousePressed.has(b); }
-
 function initInput() {
     addEventListener('keydown', e => { if (!e.repeat) { keysDown.add(e.code); keysPressed.add(e.code); } });
     addEventListener('keyup', e => keysDown.delete(e.code));
@@ -248,11 +199,6 @@ function initInput() {
     }, { passive: false });
     addEventListener('touchend', () => mouseDown.delete(0));
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// ZzFX Micro Zound Zynth by Frank Force - https://github.com/KilledByAPixel/ZzFX
-// MIT licensed / public domain, used here as-is for sound generation.
-
 let audioCtx;
 function zzfxG(volume = 1, randomness = .05, frequency = 220, attack = 0, sustain = 0, release = .1,
     shape = 0, shapeCurve = 1, slide = 0, deltaSlide = 0, pitchJump = 0, pitchJumpTime = 0,
@@ -270,7 +216,6 @@ function zzfxG(volume = 1, randomness = .05, frequency = 220, attack = 0, sustai
         a0 = 1 + alpha, a1 = -2 * cosw / a0, a2 = (1 - alpha) / a0,
         b0 = (1 + sign(filter) * cosw) / 2 / a0, b1 = -(sign(filter) + cosw) / a0, b2 = b0,
         x2 = 0, x1 = 0, y2 = 0, y1 = 0;
-
     const minAttack = 9;
     attack = attack * sampleRate || minAttack;
     decay *= sampleRate; sustain *= sampleRate; release *= sampleRate; delay *= sampleRate;
@@ -279,7 +224,6 @@ function zzfxG(volume = 1, randomness = .05, frequency = 220, attack = 0, sustai
     pitchJump *= PI2 / sampleRate;
     pitchJumpTime *= sampleRate;
     repeatTime = repeatTime * sampleRate | 0;
-
     for (length = attack + decay + sustain + release + delay | 0; i < length; b[i++] = s * volume) {
         if (!(++crush % (bitCrush * 100 | 0))) {
             s = shape ? shape > 1 ? shape > 2 ? shape > 3 ? shape > 4 ?
@@ -312,7 +256,6 @@ function zzfxG(volume = 1, randomness = .05, frequency = 220, attack = 0, sustai
     }
     return b;
 }
-
 export class Sound {
     constructor(zzfxSound) { this.params = zzfxSound; }
     play() {
@@ -327,10 +270,6 @@ export class Sound {
         src.start();
     }
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// main loop
-
 export function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost, imageUrls = []) {
     canvas = document.createElement('canvas');
     document.body.appendChild(canvas);
@@ -338,7 +277,6 @@ export function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gam
     resizeCanvas();
     addEventListener('resize', resizeCanvas);
     initInput();
-
     const start = () => {
         gameInit();
         let last = performance.now();
@@ -363,7 +301,6 @@ export function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gam
         }
         requestAnimationFrame(frame);
     };
-
     if (!imageUrls.length) { start(); return; }
     let remaining = imageUrls.length;
     for (const url of imageUrls) {
