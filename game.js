@@ -7,7 +7,7 @@
     Survive 50 ticks without the stack reaching the top to win.
 */
 
-import * as LJS from '../LittleJS/dist/littlejs.esm.js';
+import * as LJS from './littlejs.esm.js';
 import { Unicorn } from './unicorn.js';
 const { vec2, rgb, hsl } = LJS;
 

@@ -5,7 +5,7 @@
     his panel so it never spills outside it), and he bounces in celebration.
 */
 
-import * as LJS from '../LittleJS/dist/littlejs.esm.js';
+import * as LJS from './littlejs.esm.js';
 const { vec2, rgb, hsl } = LJS;
 
 // Pixel data: 16x16, indices 0=transparent, 1=white, 2=gray, 3=black, 4=gold, 5=dark gray, 6=pink
