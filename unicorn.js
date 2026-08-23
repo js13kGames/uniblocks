@@ -239,28 +239,6 @@ export class Unicorn {
         }
 
         // Draw the pixel sprite
-        // If `drawImage` is unavailable, we fallback to drawing each pixel
-        // with `drawRect` – but that’s slow. Try `drawImage` first.
-        try {
-          LJS.drawImage(this.sprite, bodyPos, vec2(sx, sy));
-        } catch(e) {
-          // Fallback: draw pixel-by-pixel (works even if drawImage is broken)
-          // (only runs if an error occurs, so it won't affect normal flow)
-          this.renderPixelByPixel(bodyPos, sx, sy);
-        }
-    }
-
-    // Slow fallback – only for debugging
-    renderPixelByPixel(pos, scaleX, scaleY) {
-      const pixelSize = scaleX / 16; // assume square
-      for (let y=0; y<16; y++) {
-        for (let x=0; x<16; x++) {
-          const col = PALETTE[PIXEL_DATA[y*16 + x]];
-          if (!col) continue;
-          const cx = pos.x + (x - 8) * pixelSize + pixelSize/2;
-          const cy = pos.y + (8 - y) * pixelSize - pixelSize/2;
-          LJS.drawRect(vec2(cx, cy), vec2(pixelSize*0.9, pixelSize*0.9), col);
-        }
-      }
+        LJS.drawImage(this.sprite, bodyPos, vec2(sx, sy));
     }
 }
