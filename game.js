@@ -1,10 +1,10 @@
 /*
-    Rainbow Unicorn Cascade - js13k entry
+    UniBlocks - js13k entry
     A Bejeweled/Tetris hybrid: a wall of colored blocks rises from the bottom
     while single blocks fall from the top. Swap adjacent blocks to make runs
     of 3+ (bonus for 4+ chains). Stall too long and a bomb cracks some blocks;
     keep matching and a rainbow block appears to wipe out a whole color.
-    Survive 100 ticks without the stack reaching the top to win.
+    Survive 50 ticks without the stack reaching the top to win.
 */
 
 import * as LJS from '../LittleJS/dist/littlejs.esm.js';
