@@ -1,4 +1,3 @@
-
 import * as LJS from './littlejs.esm.js';
 import { Unicorn } from './unicorn.js';
 const { vec2, rgb, hsl } = LJS;
@@ -10,6 +9,8 @@ const BOTTOM_MARGIN = .5;
 const WORLD_WIDTH = GRID_COLS + PANEL_WIDTH;
 const WORLD_HEIGHT = GRID_ROWS + TOP_MARGIN + BOTTOM_MARGIN;
 const CANVAS_W = 1000, CANVAS_H = 1400;
+const CAMERA_SCALE = CANVAS_H/WORLD_HEIGHT;
+const WORLD_CENTER_Y = (GRID_ROWS + TOP_MARGIN - BOTTOM_MARGIN) / 2;
 const TICK_INTERVAL = 2.5;         
 const SWAP_TIME = .2;            
 const HOVER_TIME = 1;            
@@ -17,11 +18,10 @@ const HOVER_HEIGHT = .8;
 const DROP_SPEED = 7;      
 const MAX_CONCURRENT_FALLING = 2;  
 const BOMB_CRACK_COUNT = 3;  
-const NO_MOVE_BOMB_TICKS = 10;
 const RAINBOW_TICKS = 25;
 const RAINBOW_TICKS_FAST = 10;
-const WIN_TICK = 50;
-const BEST_SCORE_KEY = 'unigameBestScore';
+const BEST_KEY = 'unigameBest';
+const LEVEL_KEY = 'unigameLevel';
 const WHITE = rgb(1,1,1);
 const BLOCK_COLORS =
 [
@@ -32,7 +32,27 @@ const BLOCK_COLORS =
     rgb(.2,.55,1),    // blue
     rgb(.65,.3,.9),   // purple
 ];
-const BLOCK_SHAPES = [3,4,5,6,8,10]; 
+// each level: win at `tick` ticks survived, bomb strikes a cell every `bomb` ticks without a match
+const LEVELS =
+[
+    {tick:25, bomb:10},
+    {tick:30, bomb:10},
+    {tick:35, bomb:9},
+    {tick:40, bomb:9},
+    {tick:45, bomb:8},
+    {tick:50, bomb:8},
+    {tick:55, bomb:7},
+    {tick:60, bomb:7},
+    {tick:65, bomb:6},
+    {tick:70, bomb:6},
+];
+const PLAY_BTN = {pos: vec2(3,2.2), w:3.2, h:1.2};
+const MENU_BTN = {pos: vec2(3,3.3), w:2.6, h:.9};
+// splash screen — screen-space coords (pixels)
+const SPLASH_BTN = {x:CANVAS_W/2, y:940, w:320, h:100};
+const SPLASH_LVL_LEFT  = {x:CANVAS_W/2-190, y:1060};
+const SPLASH_LVL_RIGHT = {x:CANVAS_W/2+190, y:1060};
+const SPLASH_LVL_ARROW_HIT = 70; // px radius for arrow tap
 const sound_goodMove = new LJS.Sound([.4,.2,250,.04,,.04,,,1,,,,,3]);
 const sound_badMove  = new LJS.Sound([,,700,,,.07,,,,3.7,,,,3,,,.1]);
 const sound_bomb      = new LJS.Sound([1.5,.1,90,.02,.02,.2,4,.3,,,,,.05]);
@@ -46,9 +66,11 @@ let selectedPos;
 let lastSpawnColumn;
 let tickCount, tickTimer, wallInsertCounter, noMoveTicks;
 let rainbowProgress, fastRainbowFlag;
-let score, bestScore;
-let gameState; // 'playing' | 'won' | 'lost'
+let score, bestScores;
+let curLevel, menuLevel;
+let gameState; // 'menu' | 'playing' | 'won' | 'lost'
 let unicorn;
+let splashUnicorn; // separate unicorn instance living in screen-space (drawn via drawImage manually)
 
 function getCell(x,y)
 {
@@ -80,22 +102,53 @@ function dangerRatio()
             if (getCell(x,y)) return (y+1)/GRID_ROWS;
     return 0;
 }
+
+// converts a world-space point (using the same fixed camera as the engine) to screen pixels,
+// so we can line up drawTextScreen labels with world-space rects/buttons
+function worldToScreenLocal(p)
+{
+    return vec2(
+        CANVAS_W/2 + (p.x-WORLD_WIDTH/2)*CAMERA_SCALE,
+        CANVAS_H/2 - (p.y-WORLD_CENTER_Y)*CAMERA_SCALE
+    );
+}
+function pointInWorldRect(p, center, w, h)
+{
+    return p.x>=center.x-w/2 && p.x<=center.x+w/2 && p.y>=center.y-h/2 && p.y<=center.y+h/2;
+}
+function drawButton(center, w, h, color, label, size=36, labelColor=rgb(0,0,0,.85))
+{
+    LJS.drawRect(center, vec2(w,h), color);
+    LJS.drawTextScreen(label, worldToScreenLocal(center), size, labelColor);
+}
+
 function gameInit()
 {
     LJS.setCanvasPixelated(true);
     LJS.setCanvasFixedSize(vec2(CANVAS_W, CANVAS_H));
     LJS.setCanvasClearColor(rgb(.08,.08,.14));
-    bestScore = +localStorage[BEST_SCORE_KEY] || 0;
 
-    const worldCenterY = (GRID_ROWS + TOP_MARGIN - BOTTOM_MARGIN) / 2;
-    LJS.setCameraPos(vec2(WORLD_WIDTH/2, worldCenterY));
-    LJS.setCameraScale(CANVAS_H/WORLD_HEIGHT);
+    bestScores = JSON.parse(localStorage[BEST_KEY] || '[]');
+    while (bestScores.length < LEVELS.length) bestScores.push(0);
+    menuLevel = Math.min(LEVELS.length-1, Math.max(0, +localStorage[LEVEL_KEY] || 0));
+    curLevel = menuLevel;
 
-unicorn = new Unicorn(
-    vec2(GRID_COLS + PANEL_WIDTH/2, GRID_ROWS/2),
-    PANEL_WIDTH - .3,
-    { left: GRID_COLS, right: GRID_COLS + PANEL_WIDTH, top: GRID_ROWS, bottom: 0 }
-);    gameReset();
+    LJS.setCameraPos(vec2(WORLD_WIDTH/2, WORLD_CENTER_Y));
+    LJS.setCameraScale(CAMERA_SCALE);
+
+    unicorn = new Unicorn(
+        vec2(GRID_COLS + PANEL_WIDTH/2, GRID_ROWS/2),
+        PANEL_WIDTH - .3,
+        { left: GRID_COLS, right: GRID_COLS + PANEL_WIDTH, top: GRID_ROWS, bottom: 0 }
+    );
+    // Splash unicorn sits in the center of the game world; we draw it at a larger size
+    // by giving it a wider roadWidth so the road and animations look good at splash scale
+    splashUnicorn = new Unicorn(
+        vec2(WORLD_WIDTH/2, WORLD_CENTER_Y + 1.5),
+        WORLD_WIDTH * .7,
+        null
+    );
+    gameState = 'splash';
 }
 function gameReset()
 {
@@ -116,6 +169,12 @@ function gameReset()
     gameState = 'playing';
     if (unicorn) unicorn.setWon(false);
 }
+function startLevel(idx)
+{
+    curLevel = idx;
+    localStorage[LEVEL_KEY] = idx;
+    gameReset();
+}
 function onTick()
 {
     if (gameState !== 'playing') return;
@@ -130,13 +189,13 @@ function onTick()
 
     trySpawnFallingBlock();
 
-    if (++noMoveTicks >= NO_MOVE_BOMB_TICKS)
+    if (++noMoveTicks >= LEVELS[curLevel].bomb)
     {
         noMoveTicks = 0;
         triggerBomb();
     }
 
-    if (tickCount >= WIN_TICK)
+    if (tickCount >= LEVELS[curLevel].tick)
         gameOver(true);
 }
 function insertWallRow()
@@ -423,7 +482,7 @@ function gameOver(won)
 {
     if (gameState !== 'playing') return;
     gameState = won ? 'won' : 'lost';
-    unicorn.setWon(won);   // <-- add this line
+    unicorn.setWon(won);
 }
 
 function worldToGridPos(pos)
@@ -474,8 +533,54 @@ function updateKeyboardInput()
         }
     }
 }
+function updateMenuInput()
+{
+    if (LJS.keyWasPressed('Escape')) { gameState='splash'; return; }
+    if (LJS.keyWasPressed('Space') || LJS.keyWasPressed('Enter')) { startLevel(menuLevel); return; }
+
+    if (LJS.mouseWasPressed(0))
+    {
+        const p = LJS.mousePos;
+        if (pointInWorldRect(p, vec2(1,6), 1.2,1.6)) menuLevel = Math.max(0, menuLevel-1);
+        else if (pointInWorldRect(p, vec2(5,6), 1.2,1.6)) menuLevel = Math.min(LEVELS.length-1, menuLevel+1);
+        else if (pointInWorldRect(p, PLAY_BTN.pos, PLAY_BTN.w, PLAY_BTN.h)) startLevel(menuLevel);
+    }
+}
+function updateSplashInput()
+{
+    // keyboard
+    if (LJS.keyWasPressed('Space') || LJS.keyWasPressed('Enter')) { gameState = 'menu'; return; }
+    if (LJS.keyWasPressed('ArrowLeft'))  menuLevel = Math.max(0, menuLevel-1);
+    if (LJS.keyWasPressed('ArrowRight')) menuLevel = Math.min(LEVELS.length-1, menuLevel+1);
+
+    if (!LJS.mouseWasPressed(0)) return;
+    // convert world mousePos back to screen pixels for hit-testing splash UI
+    const sp = worldToScreenLocal(LJS.mousePos);
+    const dx = sp.x, dy = sp.y;
+    if (Math.abs(dx-SPLASH_BTN.x)<SPLASH_BTN.w/2 && Math.abs(dy-SPLASH_BTN.y)<SPLASH_BTN.h/2)
+        { startLevel(menuLevel); return; }
+    if (Math.abs(dx-SPLASH_LVL_LEFT.x)<SPLASH_LVL_ARROW_HIT && Math.abs(dy-SPLASH_LVL_LEFT.y)<SPLASH_LVL_ARROW_HIT)
+        menuLevel = Math.max(0, menuLevel-1);
+    if (Math.abs(dx-SPLASH_LVL_RIGHT.x)<SPLASH_LVL_ARROW_HIT && Math.abs(dy-SPLASH_LVL_RIGHT.y)<SPLASH_LVL_ARROW_HIT)
+        menuLevel = Math.min(LEVELS.length-1, menuLevel+1);
+}
 function gameUpdate()
 {
+    if (gameState === 'splash')
+    {
+        updateSplashInput();
+        splashUnicorn.setDanger(0);
+        splashUnicorn.update(LJS.timeDelta);
+        return;
+    }
+    if (gameState === 'menu')
+    {
+        updateMenuInput();
+        unicorn.setDanger(0);
+        unicorn.update(LJS.timeDelta);
+        return;
+    }
+
     if (LJS.keyWasPressed('KeyR')) gameReset();
 
     if (gameState === 'playing')
@@ -492,14 +597,19 @@ function gameUpdate()
         updateKeyboardInput();
         decayFallOffsets();
     }
+    else if (LJS.keyWasPressed('KeyM') || (LJS.mouseWasPressed(0) && pointInWorldRect(LJS.mousePos, MENU_BTN.pos, MENU_BTN.w, MENU_BTN.h)))
+    {
+        menuLevel = curLevel;
+        gameState = 'menu';
+    }
 
     unicorn.setDanger(dangerRatio());
     unicorn.update(LJS.timeDelta);
 
-    if (score > bestScore)
+    if (score > bestScores[curLevel])
     {
-        bestScore = score;
-        localStorage[BEST_SCORE_KEY] = bestScore;
+        bestScores[curLevel] = score;
+        localStorage[BEST_KEY] = JSON.stringify(bestScores);
     }
 }
 function gameUpdatePost() {}
@@ -533,10 +643,80 @@ function drawGridHighlight(pos, color)
 {
     LJS.drawRect(cellCenter(pos), vec2(1.04), color);
 }
-function gameRender()
+function drawBackgroundPanels()
 {
     LJS.drawRect(vec2(GRID_COLS/2, GRID_ROWS/2), vec2(GRID_COLS, GRID_ROWS), rgb(0,0,0,.5));
     LJS.drawRect(vec2(GRID_COLS+PANEL_WIDTH/2, GRID_ROWS/2), vec2(PANEL_WIDTH, GRID_ROWS), rgb(.15,.05,.25,.6));
+}
+function drawSplashScreenRect(x, y, w, h, r, g, b, a=1)
+{
+    // raw canvas rect — bypasses world transform entirely
+    const cvs = document.querySelector('canvas');
+    const c = cvs.getContext('2d');
+    c.fillStyle = `rgb(${r*255|0} ${g*255|0} ${b*255|0} / ${a})`;
+    c.fillRect(x-w/2, y-h/2, w, h);
+}
+function drawSplash()
+{
+    // full-screen dark gradient background
+    drawSplashScreenRect(CANVAS_W/2, CANVAS_H/2, CANVAS_W, CANVAS_H, .05, .04, .12);
+
+    // decorative colour bar strips at top and bottom
+    const barH = 18;
+    const colors = BLOCK_COLORS;
+    const bw = CANVAS_W/colors.length;
+    for (let i=0; i<colors.length; ++i)
+    {
+        const c = colors[i];
+        drawSplashScreenRect(bw*i+bw/2, barH/2, bw+1, barH, c.r, c.g, c.b);
+        drawSplashScreenRect(bw*i+bw/2, CANVAS_H-barH/2, bw+1, barH, c.r, c.g, c.b);
+    }
+
+    // big title
+    LJS.drawTextScreen('UniBlocks', vec2(CANVAS_W/2, 130), 110, WHITE);
+    LJS.drawTextScreen('js13k  2025', vec2(CANVAS_W/2, 228), 28, rgb(1,1,1,.45));
+
+    // tagline
+    LJS.drawTextScreen('Match blocks. Beat the rising wall.', vec2(CANVAS_W/2, 295), 30, rgb(1,1,1,.8));
+
+    // unicorn — drawn at its world position (center of canvas at enlarged scale)
+    splashUnicorn.render();
+
+    // START button
+    drawSplashScreenRect(SPLASH_BTN.x, SPLASH_BTN.y, SPLASH_BTN.w, SPLASH_BTN.h, .2,.8,.35,.92);
+    LJS.drawTextScreen('START', vec2(SPLASH_BTN.x, SPLASH_BTN.y), 48, rgb(0,0,0,.85));
+
+    // level chooser below start
+    LJS.drawTextScreen('Starting Level', vec2(CANVAS_W/2, 1010), 26, rgb(1,1,1,.7));
+    LJS.drawTextScreen('\u25C0', vec2(SPLASH_LVL_LEFT.x,  SPLASH_LVL_LEFT.y),  54, WHITE);
+    LJS.drawTextScreen('\u25B6', vec2(SPLASH_LVL_RIGHT.x, SPLASH_LVL_RIGHT.y), 54, WHITE);
+    LJS.drawTextScreen(`${menuLevel+1}`, vec2(CANVAS_W/2, SPLASH_LVL_LEFT.y), 54, rgb(1,.9,.3));
+    LJS.drawTextScreen(`Goal: ${LEVELS[menuLevel].tick} ticks`, vec2(CANVAS_W/2, 1115), 24, rgb(1,1,1,.65));
+    LJS.drawTextScreen(`Best: ${bestScores[menuLevel]}`, vec2(CANVAS_W/2, 1150), 24, rgb(1,.85,.3,.9));
+
+    // controls hint
+    LJS.drawTextScreen('Space/tap START \u2022 \u2190/\u2192 to pick level', vec2(CANVAS_W/2, CANVAS_H-32), 22, rgb(1,1,1,.5));
+}
+function drawMenu()
+{
+    drawBackgroundPanels();
+
+    const lvl = LEVELS[menuLevel];
+    LJS.drawTextScreen('UniBlocks', vec2(CANVAS_W/2, 140), 70, WHITE);
+    LJS.drawTextScreen('Match 3+ blocks. Survive the rising wall!', vec2(CANVAS_W/2, 200), 24, rgb(1,1,1,.7));
+
+    drawButton(PLAY_BTN.pos, PLAY_BTN.w, PLAY_BTN.h, rgb(.2,.8,.3,.9), 'PLAY');
+
+    LJS.drawTextScreen('\u2190/\u2192 or tap arrows to choose a level, Space/tap PLAY to start', vec2(CANVAS_W/2,CANVAS_H-25), 20, rgb(1,1,1,.6));
+
+    unicorn.render();
+}
+function gameRender()
+{
+    if (gameState === 'splash') { drawSplash(); return; }
+    if (gameState === 'menu') { drawMenu(); return; }
+
+    drawBackgroundPanels();
     LJS.drawRect(vec2(GRID_COLS/2, GRID_ROWS+HOVER_HEIGHT), vec2(GRID_COLS,.9), rgb(1,1,1,.06));
     if (gameState==='playing')
     {
@@ -564,19 +744,24 @@ function gameRender()
         drawCell({color:fb.color, cracked:false, rainbow:fb.rainbow}, fb.pos);
 
     unicorn.render();
+
+    if (gameState==='won' || gameState==='lost')
+        drawButton(MENU_BTN.pos, MENU_BTN.w, MENU_BTN.h, rgb(.3,.5,.9,.9), 'MENU', 30);
 }
 
 function gameRenderPost()
 {
-    LJS.drawTextScreen(`Score ${score}   Best ${bestScore}`, vec2(CANVAS_W/2,50), 40, WHITE);
-    LJS.drawTextScreen(`Tick ${tickCount}/${WIN_TICK}`, vec2(CANVAS_W/2,95), 28, WHITE);
+    if (gameState === 'splash' || gameState === 'menu') return;
+
+    LJS.drawTextScreen(`Level ${curLevel+1}   Score ${score}   Best ${bestScores[curLevel]}`, vec2(CANVAS_W/2,50), 32, WHITE);
+    LJS.drawTextScreen(`Tick ${tickCount}/${LEVELS[curLevel].tick}`, vec2(CANVAS_W/2,95), 28, WHITE);
     LJS.drawTextScreen('Arrows: move   Space: select/swap   A/D: shift falling block   Drag: swap', vec2(CANVAS_W/2,CANVAS_H-25), 20, rgb(1,1,1,.6));
 
     if (gameState !== 'playing')
     {
         const won = gameState==='won';
         LJS.drawTextScreen(won?'YOU SURVIVED!':'GAME OVER', vec2(CANVAS_W/2,CANVAS_H/2-30), 60, won?rgb(.3,1,.5):rgb(1,.3,.3));
-        LJS.drawTextScreen('Press R to restart', vec2(CANVAS_W/2,CANVAS_H/2+30), 32, WHITE);
+        LJS.drawTextScreen('Press R to restart, M for menu', vec2(CANVAS_W/2,CANVAS_H/2+30), 30, WHITE);
     }
 }
 LJS.engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost, []);
