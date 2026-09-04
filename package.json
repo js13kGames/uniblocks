@@ -1,5 +1,5 @@
 {
-  "name": "littlejs-vite-example",
+  "name": "uniblocks",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -11,8 +11,5 @@
   "devDependencies": {
     "terser": "^5.50.0",
     "vite": "^7.3.1"
-  },
-  "dependencies": {
-    "littlejsengine": "^1.18.0"
   }
 }

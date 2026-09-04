@@ -77,10 +77,11 @@ function drawArc(center, radiusX, radiusY, startAngle, endAngle, thickness, colo
     }
 }
 export class Unicorn {
-    constructor(centerPos, roadWidth = 3.2, panelBounds = null) {
+    constructor(centerPos, roadWidth = 3.2, panelBounds = null, staticMode = false) {
         this.center = centerPos;
         this.roadWidth = roadWidth;
         this.panelBounds = panelBounds;
+        this.staticMode = staticMode;
         this.happyTimer = 0;
         this.happyBig = false;
         this.sadTimer = 0;
@@ -91,7 +92,7 @@ export class Unicorn {
         this.roadScroll = 0; 
         this.won = false;
         this.celebrationPhase = 0;
-        this.rainbowIn = 0; 
+        this.rainbowIn = staticMode ? 1 : 0; 
     }
     triggerHappy(big) {
         this.happyTimer = big ? 1.2 : .6;
@@ -119,6 +120,7 @@ export class Unicorn {
         );
     }
     update(dt) {
+        if (this.staticMode) return;
         if (this.happyTimer > 0) this.happyTimer = Math.max(0, this.happyTimer-dt);
         if (this.sadTimer > 0) this.sadTimer = Math.max(0, this.sadTimer-dt);
 
@@ -166,6 +168,12 @@ export class Unicorn {
     }
     render() {
         const time = LJS.time;
+
+        if (this.staticMode) {
+            this.renderRainbow();
+            LJS.drawImage(this.sprite, this.center, this.baseSize);
+            return;
+        }
 
         if (this.won) this.renderRainbow();
         this.renderRoad();

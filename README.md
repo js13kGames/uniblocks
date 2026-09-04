@@ -10,16 +10,16 @@ A wall of colored blocks rises from the bottom of the grid while single blocks f
 
 If you stall for too long, a bomb will crack some of your blocks. Keep making successful matches to charge up a special **Rainbow Block**, which can wipe out an entire color from the board. 
 
-**Your goal:** Survive **100 game ticks** without the stack of blocks reaching the top of the grid.
+**Your goal:** Survive the level's target tick count (70 at most, depending on level) without the stack of blocks reaching the top of the grid.
 
 ## ✨ Core Mechanics
 
 - **Wall Rise:** The entire grid shifts up periodically. If a block is in the top row when the wall rises, it's **Game Over**.
 - **Falling Blocks:** Single blocks drop from the top. You can nudge them left or right while they are hovering.
 - **Matching:** Swap adjacent blocks to form horizontal or vertical lines of 3+ matching colors. 
-- **Bomb Timer:** If no successful match is made for 5 ticks, a bomb triggers and cracks 3 random blocks (cracked blocks take up space but are worth less).
-- **Rainbow Block:** After accumulating enough successful matches (20 ticks, or 7 if you're on a hot streak), a Rainbow block spawns. Swapping it with any colored block clears **every block of that color** on the board!
-- **Win Condition:** Reach tick 100 without the stack topping out.
+- **Bomb Timer:** If no successful match is made for 6-10 ticks (depending on level), a bomb triggers and cracks 3 random blocks (cracked blocks take up space but are worth less).
+- **Rainbow Block:** After accumulating enough successful matches (25 ticks, or 10 if you're on a hot streak), a Rainbow block spawns. Swapping it with any colored block clears **every block of that color** on the board!
+- **Win Condition:** Reach the level's target tick count without the stack topping out.
 
 ## 🎯 Controls
 

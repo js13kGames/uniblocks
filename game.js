@@ -20,8 +20,8 @@ const MAX_CONCURRENT_FALLING = 2;
 const BOMB_CRACK_COUNT = 3;  
 const RAINBOW_TICKS = 25;
 const RAINBOW_TICKS_FAST = 10;
-const BEST_KEY = 'unigameBest';
-const LEVEL_KEY = 'unigameLevel';
+const BEST_KEY = 'unigameBestV2';
+const LEVEL_KEY = 'unigameLevelV2';
 const WHITE = rgb(1,1,1);
 const BLOCK_COLORS =
 [
@@ -47,11 +47,10 @@ const LEVELS =
     {tick:70, bomb:6},
 ];
 const PLAY_BTN = {pos: vec2(3,2.2), w:3.2, h:1.2};
-const MENU_BTN = {pos: vec2(3,3.3), w:2.6, h:.9};
 // splash screen — screen-space coords (pixels)
-const SPLASH_BTN = {x:CANVAS_W/2, y:940, w:320, h:100};
-const SPLASH_LVL_LEFT  = {x:CANVAS_W/2-190, y:1060};
-const SPLASH_LVL_RIGHT = {x:CANVAS_W/2+190, y:1060};
+const SPLASH_BTN = {x:CANVAS_W/2, y:840, w:320, h:100};
+const SPLASH_LVL_LEFT  = {x:CANVAS_W/2-190, y:970};
+const SPLASH_LVL_RIGHT = {x:CANVAS_W/2+190, y:970};
 const SPLASH_LVL_ARROW_HIT = 70; // px radius for arrow tap
 const sound_goodMove = new LJS.Sound([.4,.2,250,.04,,.04,,,1,,,,,3]);
 const sound_badMove  = new LJS.Sound([,,700,,,.07,,,,3.7,,,,3,,,.1]);
@@ -131,6 +130,7 @@ function gameInit()
     bestScores = JSON.parse(localStorage[BEST_KEY] || '[]');
     while (bestScores.length < LEVELS.length) bestScores.push(0);
     menuLevel = Math.min(LEVELS.length-1, Math.max(0, +localStorage[LEVEL_KEY] || 0));
+    menuLevel = Math.min(menuLevel, maxUnlockedLevel());
     curLevel = menuLevel;
 
     LJS.setCameraPos(vec2(WORLD_WIDTH/2, WORLD_CENTER_Y));
@@ -141,12 +141,12 @@ function gameInit()
         PANEL_WIDTH - .3,
         { left: GRID_COLS, right: GRID_COLS + PANEL_WIDTH, top: GRID_ROWS, bottom: 0 }
     );
-    // Splash unicorn sits in the center of the game world; we draw it at a larger size
-    // by giving it a wider roadWidth so the road and animations look good at splash scale
+    // Splash unicorn sits near the top of the screen, static, with its victory rainbow always shown
     splashUnicorn = new Unicorn(
-        vec2(WORLD_WIDTH/2, WORLD_CENTER_Y + 1.5),
-        WORLD_WIDTH * .7,
-        null
+        vec2(WORLD_WIDTH/2, 9.2),
+        3,
+        null,
+        true
     );
     gameState = 'splash';
 }
@@ -174,6 +174,13 @@ function startLevel(idx)
     curLevel = idx;
     localStorage[LEVEL_KEY] = idx;
     gameReset();
+}
+// a level is unlocked once every level before it has been beaten (best score > 0)
+function maxUnlockedLevel()
+{
+    let idx = 0;
+    while (idx < LEVELS.length-1 && bestScores[idx] > 0) ++idx;
+    return idx;
 }
 function onTick()
 {
@@ -542,7 +549,7 @@ function updateMenuInput()
     {
         const p = LJS.mousePos;
         if (pointInWorldRect(p, vec2(1,6), 1.2,1.6)) menuLevel = Math.max(0, menuLevel-1);
-        else if (pointInWorldRect(p, vec2(5,6), 1.2,1.6)) menuLevel = Math.min(LEVELS.length-1, menuLevel+1);
+        else if (pointInWorldRect(p, vec2(5,6), 1.2,1.6)) menuLevel = Math.min(maxUnlockedLevel(), menuLevel+1);
         else if (pointInWorldRect(p, PLAY_BTN.pos, PLAY_BTN.w, PLAY_BTN.h)) startLevel(menuLevel);
     }
 }
@@ -551,7 +558,7 @@ function updateSplashInput()
     // keyboard
     if (LJS.keyWasPressed('Space') || LJS.keyWasPressed('Enter')) { gameState = 'menu'; return; }
     if (LJS.keyWasPressed('ArrowLeft'))  menuLevel = Math.max(0, menuLevel-1);
-    if (LJS.keyWasPressed('ArrowRight')) menuLevel = Math.min(LEVELS.length-1, menuLevel+1);
+    if (LJS.keyWasPressed('ArrowRight')) menuLevel = Math.min(maxUnlockedLevel(), menuLevel+1);
 
     if (!LJS.mouseWasPressed(0)) return;
     // convert world mousePos back to screen pixels for hit-testing splash UI
@@ -562,15 +569,13 @@ function updateSplashInput()
     if (Math.abs(dx-SPLASH_LVL_LEFT.x)<SPLASH_LVL_ARROW_HIT && Math.abs(dy-SPLASH_LVL_LEFT.y)<SPLASH_LVL_ARROW_HIT)
         menuLevel = Math.max(0, menuLevel-1);
     if (Math.abs(dx-SPLASH_LVL_RIGHT.x)<SPLASH_LVL_ARROW_HIT && Math.abs(dy-SPLASH_LVL_RIGHT.y)<SPLASH_LVL_ARROW_HIT)
-        menuLevel = Math.min(LEVELS.length-1, menuLevel+1);
+        menuLevel = Math.min(maxUnlockedLevel(), menuLevel+1);
 }
 function gameUpdate()
 {
     if (gameState === 'splash')
     {
         updateSplashInput();
-        splashUnicorn.setDanger(0);
-        splashUnicorn.update(LJS.timeDelta);
         return;
     }
     if (gameState === 'menu')
@@ -581,7 +586,8 @@ function gameUpdate()
         return;
     }
 
-    if (LJS.keyWasPressed('KeyR')) gameReset();
+    if (LJS.keyWasPressed('KeyR') && gameState !== 'won') gameReset();
+    if (LJS.keyWasPressed('KeyC') && gameState === 'won') startLevel(Math.min(curLevel+1, LEVELS.length-1));
 
     if (gameState === 'playing')
     {
@@ -597,10 +603,9 @@ function gameUpdate()
         updateKeyboardInput();
         decayFallOffsets();
     }
-    else if (LJS.keyWasPressed('KeyM') || (LJS.mouseWasPressed(0) && pointInWorldRect(LJS.mousePos, MENU_BTN.pos, MENU_BTN.w, MENU_BTN.h)))
+    else if (LJS.keyWasPressed('KeyM'))
     {
-        menuLevel = curLevel;
-        gameState = 'menu';
+        gameState = 'splash';
     }
 
     unicorn.setDanger(dangerRatio());
@@ -672,27 +677,27 @@ function drawSplash()
         drawSplashScreenRect(bw*i+bw/2, CANVAS_H-barH/2, bw+1, barH, c.r, c.g, c.b);
     }
 
-    // big title
-    LJS.drawTextScreen('UniBlocks', vec2(CANVAS_W/2, 130), 110, WHITE);
-    LJS.drawTextScreen('js13k  2025', vec2(CANVAS_W/2, 228), 28, rgb(1,1,1,.45));
+    // rainbow + unicorn — drawn at its world position, up top, static (no road/bounce)
+    splashUnicorn.render();
+
+    // title
+    LJS.drawTextScreen('UniBlocks', vec2(CANVAS_W/2, 620), 90, WHITE);
+    LJS.drawTextScreen('js13k  2025', vec2(CANVAS_W/2, 678), 26, rgb(1,1,1,.45));
 
     // tagline
-    LJS.drawTextScreen('Match blocks. Beat the rising wall.', vec2(CANVAS_W/2, 295), 30, rgb(1,1,1,.8));
-
-    // unicorn — drawn at its world position (center of canvas at enlarged scale)
-    splashUnicorn.render();
+    LJS.drawTextScreen('Match blocks. Beat the rising wall.', vec2(CANVAS_W/2, 720), 28, rgb(1,1,1,.8));
 
     // START button
     drawSplashScreenRect(SPLASH_BTN.x, SPLASH_BTN.y, SPLASH_BTN.w, SPLASH_BTN.h, .2,.8,.35,.92);
     LJS.drawTextScreen('START', vec2(SPLASH_BTN.x, SPLASH_BTN.y), 48, rgb(0,0,0,.85));
 
     // level chooser below start
-    LJS.drawTextScreen('Starting Level', vec2(CANVAS_W/2, 1010), 26, rgb(1,1,1,.7));
+    LJS.drawTextScreen('Starting Level', vec2(CANVAS_W/2, 940), 26, rgb(1,1,1,.7));
     LJS.drawTextScreen('\u25C0', vec2(SPLASH_LVL_LEFT.x,  SPLASH_LVL_LEFT.y),  54, WHITE);
-    LJS.drawTextScreen('\u25B6', vec2(SPLASH_LVL_RIGHT.x, SPLASH_LVL_RIGHT.y), 54, WHITE);
+    LJS.drawTextScreen('\u25B6', vec2(SPLASH_LVL_RIGHT.x, SPLASH_LVL_RIGHT.y), 54, menuLevel>=maxUnlockedLevel() ? rgb(1,1,1,.2) : WHITE);
     LJS.drawTextScreen(`${menuLevel+1}`, vec2(CANVAS_W/2, SPLASH_LVL_LEFT.y), 54, rgb(1,.9,.3));
-    LJS.drawTextScreen(`Goal: ${LEVELS[menuLevel].tick} ticks`, vec2(CANVAS_W/2, 1115), 24, rgb(1,1,1,.65));
-    LJS.drawTextScreen(`Best: ${bestScores[menuLevel]}`, vec2(CANVAS_W/2, 1150), 24, rgb(1,.85,.3,.9));
+    LJS.drawTextScreen(`Goal: ${LEVELS[menuLevel].tick} ticks`, vec2(CANVAS_W/2, 1025), 24, rgb(1,1,1,.65));
+    LJS.drawTextScreen(`Best: ${bestScores[menuLevel]}`, vec2(CANVAS_W/2, 1060), 24, rgb(1,.85,.3,.9));
 
     // controls hint
     LJS.drawTextScreen('Space/tap START \u2022 \u2190/\u2192 to pick level', vec2(CANVAS_W/2, CANVAS_H-32), 22, rgb(1,1,1,.5));
@@ -744,9 +749,6 @@ function gameRender()
         drawCell({color:fb.color, cracked:false, rainbow:fb.rainbow}, fb.pos);
 
     unicorn.render();
-
-    if (gameState==='won' || gameState==='lost')
-        drawButton(MENU_BTN.pos, MENU_BTN.w, MENU_BTN.h, rgb(.3,.5,.9,.9), 'MENU', 30);
 }
 
 function gameRenderPost()
@@ -761,7 +763,7 @@ function gameRenderPost()
     {
         const won = gameState==='won';
         LJS.drawTextScreen(won?'YOU SURVIVED!':'GAME OVER', vec2(CANVAS_W/2,CANVAS_H/2-30), 60, won?rgb(.3,1,.5):rgb(1,.3,.3));
-        LJS.drawTextScreen('Press R to restart, M for menu', vec2(CANVAS_W/2,CANVAS_H/2+30), 30, WHITE);
+        LJS.drawTextScreen(won?'Press C to continue, M for menu':'Press R to restart, M for menu', vec2(CANVAS_W/2,CANVAS_H/2+30), 30, WHITE);
     }
 }
 LJS.engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost, []);
