@@ -5,6 +5,7 @@
 - Skip creating a written plan for small/simple tasks (single-file edits, obvious bug fixes, straightforward additions). Only write out a plan first for genuinely multi-step or ambiguous work.
 - Prefer directly editing the existing file over generating new documentation files to explain a change.
 - Keep chat replies concise: state what changed and why, without restating the whole task or over-explaining.
+- Do not open a browser to test/screenshot/verify changes (e.g. launching the dev server, navigating, clicking, taking screenshots) unless explicitly asked. The user tests changes themselves. Running a build check (`npm run build`) for syntax/compile errors is fine.
 
 ## Project context
 - This is a js13kgames entry (13KB zip size limit). The real game is `game.js` + `unicorn.js` + `littlejs.esm.js`, loaded directly by `index.html` — not through `src/main.js` (that file is leftover Vite/LittleJS template boilerplate and is unused).
