@@ -93,6 +93,8 @@ export class Unicorn {
         this.won = false;
         this.celebrationPhase = 0;
         this.rainbowIn = staticMode ? 1 : 0; 
+        this.showFireworks = false;
+        this.fireworkTimer = 0;
     }
     triggerHappy(big) {
         this.happyTimer = big ? 1.2 : .6;
@@ -102,9 +104,29 @@ export class Unicorn {
     triggerSad() { this.sadTimer = 1; }
     setDanger(ratio) { this.danger = ratio; }
 
-    setWon(won) {
+    setWon(won, fireworks) {
         this.won = !!won;
-        if (this.won) this.spawnSparkles(true);
+        this.showFireworks = !!(won && fireworks);
+        if (this.won) {
+            this.spawnSparkles(true);
+            if (this.showFireworks) this.fireworkTimer = 0; // spawn a burst right away
+        } else {
+            this.showFireworks = false;
+        }
+    }
+    spawnFirework(pos) {
+        const hue = Math.random();
+        const c1 = hsl(hue, 1, .6), c2 = hsl((hue+.15)%1, 1, .7);
+        new LJS.ParticleEmitter(
+            pos, 0,
+            .3, .1, 200, Math.PI,
+            0,
+            c1, c2,
+            c1.scale(1,0), c2.scale(1,0),
+            .8, .3, .1, .6, .1,
+            .94, 1, .3, Math.PI*2, .1,
+            .5, 0, 1
+        );
     }
     spawnSparkles(big) {
         const pos = this.center.add(vec2(0,1));
@@ -127,6 +149,14 @@ export class Unicorn {
         if (this.won) {
             this.celebrationPhase += dt*6;
             this.rainbowIn = Math.min(1, this.rainbowIn + dt*1.2);
+            if (this.showFireworks) {
+                this.fireworkTimer -= dt;
+                if (this.fireworkTimer <= 0) {
+                    this.fireworkTimer = .35 + Math.random()*.4;
+                    const offsetX = (Math.random()-.5) * this.roadWidth * .8;
+                    this.spawnFirework(this.center.add(vec2(offsetX, 1.6 + Math.random()*.8)));
+                }
+            }
             return;
         }
         let speed = 5.5 + this.danger*1.5;

@@ -36,7 +36,7 @@ const BLOCK_COLORS =
 // `wall` is the base tick-interval between wall rises (lower = faster), `fall` is the max concurrent falling blocks
 const LEVELS =
 [
-    {tick:50, bomb:7, wall:3, fall:1}, //lv 1
+    {tick:40, bomb:7, wall:3, fall:1}, //lv 1
     {tick:50, bomb:7, wall:3, fall:1}, //lv 2
     {tick:60, bomb:7,  wall:2.5, fall:2}, //lv 3
     {tick:60, bomb:6,  wall:2.5, fall:2}, //lv 4
@@ -136,7 +136,12 @@ function drawPanelButtons()
     else if (gameState === 'paused')
         drawButton(PANEL_BTN_PRIMARY.pos, PANEL_BTN_PRIMARY.w, PANEL_BTN_PRIMARY.h, rgb(.2,.8,.3,.9), 'RESUME', 28);
     else if (gameState === 'won')
-        drawButton(PANEL_BTN_PRIMARY.pos, PANEL_BTN_PRIMARY.w, PANEL_BTN_PRIMARY.h, rgb(.2,.8,.3,.9), 'CONTINUE', 24);
+    {
+        const isLastLevel = curLevel === LEVELS.length-1;
+        drawButton(PANEL_BTN_PRIMARY.pos, PANEL_BTN_PRIMARY.w, PANEL_BTN_PRIMARY.h,
+            isLastLevel ? rgb(.5,.5,.5,.6) : rgb(.2,.8,.3,.9), 'CONTINUE', 24,
+            isLastLevel ? rgb(0,0,0,.4) : rgb(0,0,0,.85));
+    }
     else if (gameState === 'lost')
         drawButton(PANEL_BTN_PRIMARY.pos, PANEL_BTN_PRIMARY.w, PANEL_BTN_PRIMARY.h, rgb(1,.4,.4,.9), 'RESTART', 26);
 
@@ -527,7 +532,7 @@ function gameOver(won)
 {
     if (gameState !== 'playing') return;
     gameState = won ? 'won' : 'lost';
-    unicorn.setWon(won);
+    unicorn.setWon(won, curLevel === LEVELS.length-1);
 
     if (won && !levelWon[curLevel])
     {
@@ -660,7 +665,7 @@ function gameUpdate()
 
     if (LJS.keyWasPressed('KeyR') && gameState !== 'won') gameReset();
     if (gameState === 'lost' && primaryClicked) gameReset();
-    if (gameState === 'won' && (LJS.keyWasPressed('KeyC') || primaryClicked)) startLevel(Math.min(curLevel+1, LEVELS.length-1));
+    if (gameState === 'won' && curLevel < LEVELS.length-1 && (LJS.keyWasPressed('KeyC') || primaryClicked)) startLevel(curLevel+1);
 
     if (gameState === 'playing')
     {
@@ -838,7 +843,10 @@ function gameRenderPost()
         }
         const won = gameState==='won';
         LJS.drawTextScreen(won?'YOU SURVIVED!':'GAME OVER', vec2(CANVAS_W/2,CANVAS_H/2-30), 60, won?rgb(.3,1,.5):rgb(1,.3,.3));
-        LJS.drawTextScreen(won?'Press C to continue, M for menu':'Press R to restart, M for menu', vec2(CANVAS_W/2,CANVAS_H/2+30), 30, WHITE);
+        const wonLastLevel = won && curLevel === LEVELS.length-1;
+        LJS.drawTextScreen(
+            wonLastLevel ? 'You beat the game! M for menu' : won?'Press C to continue, M for menu':'Press R to restart, M for menu',
+            vec2(CANVAS_W/2,CANVAS_H/2+30), 30, WHITE);
     }
 }
 LJS.engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost, []);
