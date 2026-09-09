@@ -16,11 +16,11 @@ const SWAP_TIME = .2;
 const HOVER_TIME = 1;            
 const HOVER_HEIGHT = .8;        
 const DROP_SPEED = 7;      
-const MAX_CONCURRENT_FALLING = 2;  
 const BOMB_CRACK_COUNT = 3;  
 const RAINBOW_TICKS = 25;
 const RAINBOW_TICKS_FAST = 10;
 const BEST_KEY = 'unigameBestV2';
+const WON_KEY = 'unigameWonV2';
 const LEVEL_KEY = 'unigameLevelV2';
 const WHITE = rgb(1,1,1);
 const BLOCK_COLORS =
@@ -32,19 +32,20 @@ const BLOCK_COLORS =
     rgb(.2,.55,1),    // blue
     rgb(.65,.3,.9),   // purple
 ];
-// each level: win at `tick` ticks survived, bomb strikes a cell every `bomb` ticks without a match
+// each level: win at `tick` ticks survived, bomb strikes a cell every `bomb` ticks without a match,
+// `wall` is the base tick-interval between wall rises (lower = faster), `fall` is the max concurrent falling blocks
 const LEVELS =
 [
-    {tick:25, bomb:10},
-    {tick:30, bomb:10},
-    {tick:35, bomb:9},
-    {tick:40, bomb:9},
-    {tick:45, bomb:8},
-    {tick:50, bomb:8},
-    {tick:55, bomb:7},
-    {tick:60, bomb:7},
-    {tick:65, bomb:6},
-    {tick:70, bomb:6},
+    {tick:50, bomb:7, wall:3, fall:1}, //lv 1
+    {tick:50, bomb:7, wall:3, fall:1}, //lv 2
+    {tick:60, bomb:7,  wall:2.5, fall:2}, //lv 3
+    {tick:60, bomb:6,  wall:2.5, fall:2}, //lv 4
+    {tick:70, bomb:6,  wall:2, fall:3}, //lv 5
+    {tick:70, bomb:6,  wall:2, fall:3}, //lv 6
+    {tick:80, bomb:5,  wall:2.5, fall:3}, //lv 7
+    {tick:80, bomb:5,  wall:1.5, fall:3}, //lv 8
+    {tick:90, bomb:4,  wall:1, fall:4}, //lv 9
+    {tick:100, bomb:3,  wall:.50, fall:5}, //lv 10
 ];
 const PLAY_BTN = {pos: vec2(3,2.2), w:3.2, h:1.2};
 // in-game side panel buttons (world-space), sit below the unicorn's road
@@ -63,12 +64,13 @@ let grid;
 let fallingBlocks;   
 let swapAnim;   
 let dragStart;   
+let draggingFb;   
 let cursorPos;     
 let selectedPos;   
 let lastSpawnColumn;
 let tickCount, tickTimer, wallInsertCounter, noMoveTicks;
 let rainbowProgress, fastRainbowFlag;
-let score, bestScores;
+let score, bestScores, levelWon;
 let curLevel, menuLevel;
 let gameState; // 'menu' | 'playing' | 'paused' | 'won' | 'lost'
 let unicorn;
@@ -95,7 +97,11 @@ function cellCenter(pos) { return vec2(pos.x+.5, pos.y+.5); }
 function lerpVec(a,b,p) { return vec2(LJS.lerp(a.x,b.x,p), LJS.lerp(a.y,b.y,p)); }
 
 function computeColorCount(tick) { return Math.min(6, 4 + Math.floor(tick/25)); }
-function computeWallInterval(tick) { return tick>=75 ? 1 : tick>=40 ? 2 : 3; }
+function computeWallInterval(level, tick)
+{
+    const base = LEVELS[level].wall;
+    return tick>=75 ? Math.max(1, base-2) : tick>=40 ? Math.max(1, base-1) : base;
+}
 
 function dangerRatio()
 {
@@ -145,6 +151,8 @@ function gameInit()
 
     bestScores = JSON.parse(localStorage[BEST_KEY] || '[]');
     while (bestScores.length < LEVELS.length) bestScores.push(0);
+    levelWon = JSON.parse(localStorage[WON_KEY] || '[]');
+    while (levelWon.length < LEVELS.length) levelWon.push(false);
     menuLevel = Math.min(LEVELS.length-1, Math.max(0, +localStorage[LEVEL_KEY] || 0));
     menuLevel = Math.min(menuLevel, maxUnlockedLevel());
     curLevel = menuLevel;
@@ -172,6 +180,7 @@ function gameReset()
     fallingBlocks = [];
     swapAnim = null;
     dragStart = null;
+    draggingFb = null;
     selectedPos = null;
     cursorPos = {x: (GRID_COLS/2)|0, y: (GRID_ROWS/2)|0};
     lastSpawnColumn = -1;
@@ -191,11 +200,11 @@ function startLevel(idx)
     localStorage[LEVEL_KEY] = idx;
     gameReset();
 }
-// a level is unlocked once every level before it has been beaten (best score > 0)
+// a level is unlocked once every level before it has been won
 function maxUnlockedLevel()
 {
     let idx = 0;
-    while (idx < LEVELS.length-1 && bestScores[idx] > 0) ++idx;
+    while (idx < LEVELS.length-1 && levelWon[idx]) ++idx;
     return idx;
 }
 function onTick()
@@ -203,7 +212,7 @@ function onTick()
     if (gameState !== 'playing') return;
     ++tickCount;
 
-    if (++wallInsertCounter >= computeWallInterval(tickCount))
+    if (++wallInsertCounter >= computeWallInterval(curLevel, tickCount))
     {
         wallInsertCounter = 0;
         insertWallRow();
@@ -239,7 +248,7 @@ function insertWallRow()
 }
 function trySpawnFallingBlock()
 {
-    if (fallingBlocks.length >= MAX_CONCURRENT_FALLING) return;
+    if (fallingBlocks.length >= LEVELS[curLevel].fall) return;
     const candidates = [];
     for (let x=0; x<GRID_COLS; ++x)
         if (!getCell(x,GRID_ROWS-1)) candidates.push(x);
@@ -286,6 +295,19 @@ function triggerBomb()
     sound_bomb.play();
     unicorn.triggerSad();
 }
+function setFallingBlockColumn(fb, col)
+{
+    col = Math.max(0, Math.min(GRID_COLS-1, col));
+    if (col === fb.col) return;
+    if (fb.state === 'dropping')
+    {
+        // block the move if the new column is already stacked up to (or above) the block's current height
+        const targetRow = lowestEmptyRow(col);
+        if (targetRow === -1 || targetRow+.5 >= fb.pos.y) return;
+    }
+    fb.col = col;
+}
+function moveFallingBlock(fb, dir) { setFallingBlockColumn(fb, fb.col+dir); }
 function updateFallingBlocks(dt)
 {
     for (let i=fallingBlocks.length-1; i>=0; --i)
@@ -506,6 +528,12 @@ function gameOver(won)
     if (gameState !== 'playing') return;
     gameState = won ? 'won' : 'lost';
     unicorn.setWon(won);
+
+    if (won && !levelWon[curLevel])
+    {
+        levelWon[curLevel] = true;
+        localStorage[WON_KEY] = JSON.stringify(levelWon);
+    }
 }
 
 function worldToGridPos(pos)
@@ -517,6 +545,22 @@ function worldToGridPos(pos)
 function updateMouseInput()
 {
     const gridPos = worldToGridPos(LJS.mousePos);
+
+    if (!LJS.mouseIsDown(0)) draggingFb = null;
+
+    // grabbing a falling block (press must land on the block itself) lets you drag it into another column
+    if (LJS.mouseWasPressed(0))
+    {
+        const hit = fallingBlocks.find(fb => Math.abs(LJS.mousePos.x-fb.pos.x)<.5 && Math.abs(LJS.mousePos.y-fb.pos.y)<.5);
+        if (hit) draggingFb = hit;
+    }
+    if (draggingFb)
+    {
+        const col = Math.floor(LJS.mousePos.x);
+        if (col>=0 && col<GRID_COLS) setFallingBlockColumn(draggingFb, col);
+        return;
+    }
+
     if (LJS.mouseWasPressed(0) && gridPos && !swapAnim)
         dragStart = gridPos;
     else if (LJS.mouseIsDown(0) && dragStart && !swapAnim && gridPos)
@@ -532,12 +576,12 @@ function updateMouseInput()
 }
 function updateKeyboardInput()
 {
-    // A/D nudge the oldest hovering falling block sideways before it drops
-    const hoveringFb = fallingBlocks.find(fb=>fb.state==='hover');
-    if (hoveringFb)
+    // A/D move the newest falling block sideways (while hovering or dropping), snapped to grid columns
+    const fb = fallingBlocks[fallingBlocks.length-1];
+    if (fb)
     {
-        if (LJS.keyWasPressed('KeyA')) hoveringFb.col = Math.max(0, hoveringFb.col-1);
-        if (LJS.keyWasPressed('KeyD')) hoveringFb.col = Math.min(GRID_COLS-1, hoveringFb.col+1);
+        if (LJS.keyWasPressed('KeyA')) moveFallingBlock(fb, -1);
+        if (LJS.keyWasPressed('KeyD')) moveFallingBlock(fb, 1);
     }
 
     if (swapAnim) return;
