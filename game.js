@@ -15,7 +15,7 @@ const TICK_INTERVAL = 2.5;
 const SWAP_TIME = .2;            
 const HOVER_TIME = 1;            
 const HOVER_HEIGHT = .8;        
-const DROP_SPEED = 7;      
+const DROP_SPEED = 5;      
 const BOMB_CRACK_COUNT = 3;  
 const RAINBOW_TICKS = 25;
 const RAINBOW_TICKS_FAST = 10;
@@ -36,16 +36,16 @@ const BLOCK_COLORS =
 // `wall` is the base tick-interval between wall rises (lower = faster), `fall` is the max concurrent falling blocks
 const LEVELS =
 [
-    {tick:40, bomb:7, wall:3, fall:1}, //lv 1
+    {tick:50, bomb:7, wall:3, fall:1}, //lv 1
     {tick:50, bomb:7, wall:3, fall:1}, //lv 2
-    {tick:60, bomb:7,  wall:2.5, fall:2}, //lv 3
-    {tick:60, bomb:6,  wall:2.5, fall:2}, //lv 4
-    {tick:70, bomb:6,  wall:2, fall:3}, //lv 5
-    {tick:70, bomb:6,  wall:2, fall:3}, //lv 6
-    {tick:80, bomb:5,  wall:2.5, fall:3}, //lv 7
-    {tick:80, bomb:5,  wall:1.5, fall:3}, //lv 8
-    {tick:90, bomb:4,  wall:1, fall:4}, //lv 9
-    {tick:100, bomb:3,  wall:.50, fall:5}, //lv 10
+    {tick:50, bomb:7,  wall:2.5, fall:2}, //lv 3
+    {tick:50, bomb:6,  wall:2.5, fall:2}, //lv 4
+    {tick:50, bomb:6,  wall:2, fall:3}, //lv 5
+    {tick:50, bomb:6,  wall:2, fall:3}, //lv 6
+    {tick:50, bomb:5,  wall:2.5, fall:3}, //lv 7
+    {tick:50, bomb:5,  wall:1.5, fall:3}, //lv 8
+    {tick:50, bomb:5,  wall:1, fall:4}, //lv 9
+    {tick:50, bomb:4,  wall:.50, fall:5}, //lv 10
 ];
 const PLAY_BTN = {pos: vec2(3,2.2), w:3.2, h:1.2};
 // in-game side panel buttons (world-space), sit below the unicorn's road
